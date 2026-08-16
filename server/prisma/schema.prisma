@@ -1,0 +1,171 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model CompanyProfile {
+  id               String           @id @default(uuid())
+  name             String
+  tagline          String?
+  summary          String
+  offerings        String           // JSON string of offerings/services
+  targetIndustries String           // JSON string
+  caseStudies      String?          // JSON string
+  pricing          String?          // JSON string
+  techStack        String?          // JSON string
+  limitations      String?          // JSON string
+  sourceType       String           // "PDF" or "TEXT"
+  sourceText       String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  knowledgeChunks  KnowledgeChunk[]
+}
+
+model KnowledgeChunk {
+  id               String         @id @default(uuid())
+  companyProfileId String
+  companyProfile   CompanyProfile @relation(fields: [companyProfileId], references: [id], onDelete: Cascade)
+  title            String
+  content          String
+  category         String         // offering, pricing, tech, case_study, limitation
+  createdAt        DateTime       @default(now())
+}
+
+model ICP {
+  id               String   @id @default(uuid())
+  location         String
+  industry         String
+  companySize      String
+  targetProblem    String
+  exclusions       String?
+  normalizedPrompt String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  leads            Lead[]
+}
+
+model Lead {
+  id                 String             @id @default(uuid())
+  icpId              String?
+  icp                ICP?               @relation(fields: [icpId], references: [id], onDelete: SetNull)
+  name               String
+  website            String?
+  industry           String?
+  location           String?
+  size               String?
+  stage              String             @default("Discovered") // Discovered, Potential, Researching, Qualified, Contacted, Interested, Meeting Scheduled, Converted, Not Qualified, Not Interested, Do Not Contact
+  confidenceScore    Int                @default(0)
+  scoreExplanation   String?
+  recommendedService String?
+  serviceRationale   String?
+  doNotContact       Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  evidences          ResearchEvidence[]
+  contacts           Contact[]
+  messages           Message[]
+  followUps          FollowUpTask[]
+  meetings           Meeting[]
+  memories           Memory[]
+}
+
+model ResearchEvidence {
+  id         String   @id @default(uuid())
+  leadId     String
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  sourceType String   // "website", "news", "funding", "social", "tech"
+  sourceUrl  String?
+  title      String
+  snippet    String
+  confidence String   @default("High") // High, Medium, Low
+  createdAt  DateTime @default(now())
+}
+
+model Contact {
+  id         String    @id @default(uuid())
+  leadId     String
+  lead       Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  name       String
+  role       String
+  relevance  String    // High, Medium, Low
+  email      String?
+  phone      String?
+  confidence String    @default("High")
+  createdAt  DateTime  @default(now())
+  messages   Message[]
+  meetings   Meeting[]
+}
+
+model Message {
+  id             String    @id @default(uuid())
+  leadId         String
+  lead           Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  contactId      String?
+  contact        Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  direction      String    // "outbound", "inbound"
+  channel        String    @default("email") // "email", "whatsapp"
+  subject        String?
+  body           String
+  classification String?   // "Positive / Interested", "Meeting requested", "Question", "Pricing objection", "Technical objection", "Not interested", "Not now", "Wrong person / Referral", "Other"
+  nextAction     String?
+  evidenceUsed   String?   // JSON references
+  status         String    @default("sent") // "draft", "sent", "delivered", "replied"
+  createdAt      DateTime  @default(now())
+}
+
+model FollowUpTask {
+  id             String   @id @default(uuid())
+  leadId         String
+  lead           Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  sequenceStep   Int      @default(1) // 1 = Day 0, 2 = Day 3
+  scheduledFor   DateTime
+  status         String   @default("pending") // "pending", "executed", "cancelled"
+  templatePrompt String?
+  createdAt      DateTime @default(now())
+}
+
+model Meeting {
+  id                 String   @id @default(uuid())
+  leadId             String
+  lead               Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  contactId          String?
+  contact            Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  meetingTime        DateTime
+  meetingLink        String
+  serviceToDiscuss   String
+  problemSummary     String
+  objectionsExpected String?
+  keyDiscussionPoints String
+  reminderSent       Boolean  @default(false)
+  whatsappNotified   Boolean  @default(false)
+  status             String   @default("scheduled") // "scheduled", "completed", "cancelled"
+  createdAt          DateTime @default(now())
+}
+
+model Memory {
+  id        String   @id @default(uuid())
+  leadId    String?
+  lead      Lead?    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type      String   // "short_term", "long_term"
+  category  String   // "objection", "preference", "decision_log", "agent_state"
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model AgentActivityLog {
+  id         String   @id @default(uuid())
+  agentName  String   // Discovery, CheapFilter, DeepResearch, Qualification, ServiceMatch, Outreach, ResponseClassifier, Meeting, FollowUp
+  step       String
+  toolUsed   String?
+  inputData  String?
+  outputData String?
+  decision   String?
+  durationMs Int      @default(0)
+  status     String   @default("success") // "success", "running", "failed"
+  createdAt  DateTime @default(now())
+}
